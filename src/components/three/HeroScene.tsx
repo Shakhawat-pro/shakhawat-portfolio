@@ -1,16 +1,31 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+/**
+ * HeroScene — the WebGL "hologram command room" behind the hero copy.
+ *
+ * Scene graph (all inside a group shifted right on desktop so the name has room):
+ *   Hologram        the portrait on a displaced plane with a hologram shader
+ *   Panels          floating HUD screens (code, API, charts…) drawn to canvases
+ *   Environment     halo, overhead ring light, edge data columns, rising motes
+ *   LightningFloor  animated lightning + grid on the floor plane
+ *   Rig             camera: starts on the eyes, dollies out after the preloader,
+ *                   then follows the pointer and drifts back with scroll
+ *
+ * Rendering pauses whenever the hero is off screen.
+ */
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useTexture } from "@react-three/drei";
 import { gsap } from "gsap";
-import { onIntroDone, prefersReducedMotion } from "@/lib/intro";
-import { profile } from "@/data/profile";
+import { onIntroDone } from "@/lib/intro";
+import { MOBILE_QUERY, prefersReducedMotion, useMediaQuery } from "@/lib/motion";
 import { glowTexture, panelTexture, type PanelKind } from "./textures";
 
+// 900px WebP made from the portrait (~90 KB vs the 2.2 MB original) — plenty for the hologram
+const PHOTO_TEXTURE = "/textures/hologram.webp";
 const PHOTO_H = 4.2;
-const PHOTO_W = PHOTO_H * (1086 / 1448);
+const PHOTO_W = PHOTO_H * (3 / 4);
 const PHOTO_Y = 0.25;
 // eyes sit ~36% from the top of the photo
 const EYE_Y = PHOTO_Y + (0.64 - 0.5) * PHOTO_H;
@@ -18,6 +33,11 @@ const EYE_Y = PHOTO_Y + (0.64 - 0.5) * PHOTO_H;
 // shared animation state driven by GSAP, read inside useFrame
 type Intro = { dolly: number; reveal: number };
 type IntroRef = React.RefObject<Intro>;
+
+/** Disposes GPU textures that were created by hand (canvas textures) on unmount. */
+function useDisposeOnUnmount(textures: THREE.Texture[]) {
+  useEffect(() => () => textures.forEach((t) => t.dispose()), [textures]);
+}
 
 const MOTE_COUNT = 360;
 function makeMotes() {
@@ -45,10 +65,36 @@ const noiseGLSL = /* glsl */ `
   }
 `;
 
+// ---------------------------------------------------------------------------
+// Hologram: the portrait. The vertex shader pushes the face/torso forward for
+// depth and parallax; the fragment shader adds chromatic glitch bands,
+// scanlines, an oval fade-out mask, a violet rim and a noise "burn-in" reveal.
+// ---------------------------------------------------------------------------
+function usePhotoTexture() {
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let loaded: THREE.Texture | null = null;
+    new THREE.TextureLoader().load(PHOTO_TEXTURE, (t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+      loaded = t;
+      if (alive) setTex(t);
+      else t.dispose();
+    });
+    return () => {
+      alive = false;
+      loaded?.dispose();
+    };
+  }, []);
+  return tex;
+}
+
 function Hologram({ intro }: { intro: IntroRef }) {
-  const tex = useTexture(profile.photo, (t) => {
-    t.colorSpace = THREE.SRGBColorSpace;
-  });
+  const tex = usePhotoTexture();
+  return tex ? <HologramMesh tex={tex} intro={intro} /> : null;
+}
+
+function HologramMesh({ tex, intro }: { tex: THREE.Texture; intro: IntroRef }) {
   const mat = useRef<THREE.ShaderMaterial>(null);
   const { pointer } = useThree();
 
@@ -136,6 +182,10 @@ function Hologram({ intro }: { intro: IntroRef }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// LightningFloor: three flickering fbm lightning bolts plus a faint grid,
+// faded out toward the plane's edges.
+// ---------------------------------------------------------------------------
 function LightningFloor() {
   const mat = useRef<THREE.ShaderMaterial>(null);
   const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
@@ -178,7 +228,9 @@ function LightningFloor() {
             col += vec3(0.3, 0.25, 0.9) * grid * 0.12;
             float fade = smoothstep(0.0, 0.3, uv.y) * smoothstep(1.0, 0.6, uv.y)
                        * (1.0 - smoothstep(0.15, 0.5, abs(uv.x - 0.5)));
-            gl_FragColor = vec4(col * fade, 1.0);
+            col *= fade;
+            float a = clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0);
+            gl_FragColor = vec4(col / max(a, 1e-4), a);
           }
         `}
       />
@@ -186,6 +238,10 @@ function LightningFloor() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Panels: floating HUD screens around the subject. Each texture is drawn once
+// to a canvas (see textures.ts); panels bob and flicker slightly.
+// ---------------------------------------------------------------------------
 type PanelCfg = { kind: PanelKind; pos: [number, number, number]; rotY: number; scale: number };
 
 function Panels({ compact }: { compact: boolean }) {
@@ -202,12 +258,17 @@ function Panels({ compact }: { compact: boolean }) {
   }, [compact]);
 
   const textures = useMemo(() => cfg.map((c) => panelTexture(c.kind)), [cfg]);
+  useDisposeOnUnmount(textures);
   const refs = useRef<(THREE.Mesh | null)[]>([]);
+  // on narrower screens pull the panels inward so they stay clear of the edge columns
+  const aspect = useThree((s) => s.size.width / s.size.height);
+  const spread = compact ? 1 : THREE.MathUtils.clamp(aspect / 1.9, 0.78, 1);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     refs.current.forEach((m, i) => {
       if (!m) return;
+      m.position.x = cfg[i].pos[0] * spread;
       m.position.y = cfg[i].pos[1] + Math.sin(t * 0.7 + i * 1.3) * 0.08;
       (m.material as THREE.MeshBasicMaterial).opacity = 0.78 + Math.sin(t * 3 + i) * 0.06;
     });
@@ -239,9 +300,91 @@ function Panels({ compact }: { compact: boolean }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// DataColumn: a segmented neon column with pulses of light streaming upward,
+// fading out at both ends — like data flowing through a cable.
+// Each column is pinned to a screen edge (`side` = -1 left, 1 right) every
+// frame, so it always frames the scene and never crosses the HUD panels.
+// ---------------------------------------------------------------------------
+const COLUMN_NDC_X = 0.94;
+const COLUMN_Z = -3.2;
+
+function DataColumn({ side, seed }: { side: -1 | 1; seed: number }) {
+  const mesh = useRef<THREE.Mesh>(null);
+  const mat = useRef<THREE.ShaderMaterial>(null);
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uSeed: { value: seed } }), [seed]);
+  const dir = useMemo(() => new THREE.Vector3(), []);
+  const hit = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame(({ camera }, dt) => {
+    mat.current!.uniforms.uTime.value += dt;
+    const m = mesh.current!;
+    // cast a ray through the screen-edge point and meet the column's depth plane
+    dir.set(side * COLUMN_NDC_X, 0, 0.5).unproject(camera).sub(camera.position).normalize();
+    const t = (COLUMN_Z - camera.position.z) / dir.z;
+    hit.copy(camera.position).addScaledVector(dir, t);
+    m.parent!.worldToLocal(hit);
+    m.position.set(hit.x, 0.6, COLUMN_Z);
+  });
+
+  return (
+    <mesh ref={mesh} position={[side * 4.4, 0.6, COLUMN_Z]}>
+      <planeGeometry args={[1.2, 5.6]} />
+      <shaderMaterial
+        ref={mat}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        uniforms={uniforms}
+        vertexShader={/* glsl */ `
+          varying vec2 vUv;
+          void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+        `}
+        fragmentShader={/* glsl */ `
+          uniform float uTime;
+          uniform float uSeed;
+          varying vec2 vUv;
+          void main() {
+            float dx = abs(vUv.x - 0.5) * 1.2;   // distance from the center line, in world units
+            float y = vUv.y;
+
+            // segmented core: short dashes with small gaps
+            float seg = step(0.22, fract(y * 34.0));
+            float core = (1.0 - smoothstep(0.008, 0.02, dx)) * seg;
+
+            // pulses travelling upward at different speeds
+            float pulse = 0.0;
+            for (int i = 0; i < 3; i++) {
+              float fi = float(i);
+              float p = fract(uTime * (0.16 + fi * 0.05) + uSeed + fi * 0.37);
+              float d = y - p;
+              pulse += exp(-d * d / 0.0009) + 0.35 * exp(-d * d / 0.012) * step(d, 0.0);
+            }
+
+            float halo = exp(-dx * 9.0) * (0.12 + pulse * 0.55);
+            float spark = (1.0 - smoothstep(0.0, 0.06, dx)) * pulse;
+
+            float fade = smoothstep(0.0, 0.18, y) * smoothstep(1.0, 0.78, y);
+            vec3 violet = vec3(0.55, 0.38, 1.0);
+            vec3 cyan = vec3(0.45, 0.92, 1.0);
+            vec3 col = (violet * (core * 0.9 + halo) + mix(violet, cyan, 0.7) * spark * 1.6) * fade;
+            // alpha follows brightness so dark pixels stay see-through on the transparent canvas
+            float a = clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0);
+            gl_FragColor = vec4(col / max(a, 1e-4), a);
+          }
+        `}
+      />
+    </mesh>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Environment: ambient set dressing around the subject.
+// ---------------------------------------------------------------------------
 function Environment({ compact }: { compact: boolean }) {
   const violetGlow = useMemo(() => glowTexture("rgba(124,58,237,0.9)", "rgba(124,58,237,0)"), []);
   const cyanGlow = useMemo(() => glowTexture("rgba(103,232,249,0.9)", "rgba(103,232,249,0)"), []);
+  useDisposeOnUnmount(useMemo(() => [violetGlow, cyanGlow], [violetGlow, cyanGlow]));
   const ring = useRef<THREE.Mesh>(null);
   const motes = useRef<THREE.Points>(null);
 
@@ -281,18 +424,10 @@ function Environment({ compact }: { compact: boolean }) {
           <spriteMaterial map={cyanGlow} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.25} />
         </sprite>
       </group>
-      {/* neon pillars */}
-      {[-4.4, 4.4].map((x) => (
-        <group key={x} position={[x, 0.6, -3.2]}>
-          <mesh>
-            <boxGeometry args={[0.05, 5.4, 0.05]} />
-            <meshBasicMaterial color="#c4b5fd" />
-          </mesh>
-          <sprite scale={[1.4, 6.5, 1]}>
-            <spriteMaterial map={violetGlow} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.8} />
-          </sprite>
-        </group>
-      ))}
+      {/* energy data columns */}
+      <DataColumn side={-1} seed={0} />
+      <DataColumn side={1} seed={0.5} />
+      {/* dust motes rising through the room */}
       <points ref={motes}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[motePos, 3]} />
@@ -310,6 +445,10 @@ function Environment({ compact }: { compact: boolean }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Rig: camera choreography. `intro.dolly` (0 → 1) blends from the eye close-up
+// to the wide shot; pointer adds parallax and scroll pulls the camera back.
+// ---------------------------------------------------------------------------
 function Rig({ intro, offsetX, compact }: { intro: IntroRef; offsetX: number; compact: boolean }) {
   const { camera, pointer } = useThree();
   const smooth = useRef(new THREE.Vector2());
@@ -341,6 +480,7 @@ function Scene({ compact }: { compact: boolean }) {
   const intro = useRef<Intro>({ dolly: 0, reveal: 0 });
   const offsetX = compact ? 0 : 1.7;
 
+  // after the preloader: burn the hologram in, then pull the camera back
   useEffect(() => {
     const state = intro.current;
     if (prefersReducedMotion()) {
@@ -367,9 +507,7 @@ function Scene({ compact }: { compact: boolean }) {
       <group position={[offsetX, compact ? 0.7 : 0, 0]}>
         <Environment compact={compact} />
         <Panels compact={compact} />
-        <Suspense fallback={null}>
-          <Hologram intro={intro} />
-        </Suspense>
+        <Hologram intro={intro} />
         <LightningFloor />
       </group>
     </>
@@ -379,23 +517,17 @@ function Scene({ compact }: { compact: boolean }) {
 export default function HeroScene() {
   const wrap = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(true);
-  const [compact, setCompact] = useState(false);
+  const compact = useMediaQuery(MOBILE_QUERY);
 
+  // stop the render loop entirely while the hero is scrolled out of view
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const update = () => setCompact(mq.matches);
-    update();
-    mq.addEventListener("change", update);
     const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting));
     io.observe(wrap.current!);
-    return () => {
-      mq.removeEventListener("change", update);
-      io.disconnect();
-    };
+    return () => io.disconnect();
   }, []);
 
   return (
-    <div ref={wrap} className="absolute inset-0">
+    <div ref={wrap} className="absolute inset-0" aria-hidden>
       <Canvas
         frameloop={visible ? "always" : "never"}
         dpr={[1, 1.5]}

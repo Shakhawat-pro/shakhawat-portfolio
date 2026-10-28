@@ -1,15 +1,20 @@
-// All personal content lives here. Items marked TODO are placeholders.
+// ============================================================================
+// Site content — every piece of personal copy lives in this file, so the
+// components stay purely presentational. Items marked TODO are placeholders.
+// ============================================================================
 
+// ---- identity, links and hero / about copy ---------------------------------
 export const profile = {
   firstName: "Shakhawat",
   lastName: "Hossain",
   fullName: "MD. Shakhawat Hossain",
   role: "Full-Stack Developer",
   location: "Dhaka, Bangladesh",
-  tagline:
-    "Full-Stack Developer building modern web applications — focused on clean code, performance, responsive interfaces and reliable user experiences.",
+  siteUrl: "https://shakhawat-portfolio.vercel.app",
+  // hero line, shown right after the role
+  tagline: "crafting fast, thoughtful web apps — from ERP backends to buttery-smooth interfaces.",
   about: [
-    "I'm Shakhawat — a full-stack developer who enjoys turning complex business problems into fast, friendly products. By day I build ERP modules, e-commerce platforms and dashboards at Nebs-IT Solution.",
+    "I'm Shakhawat — a full-stack software engineer who turns complex business problems into fast, reliable products. I design and build end-to-end web applications, from scalable APIs and data models to polished, responsive interfaces.",
     "I care about the details: clean APIs, smooth interactions and interfaces that feel good on every screen. Always learning, always shipping.",
   ],
   photo: "/Shakhawat_img.png",
@@ -27,6 +32,7 @@ export const profile = {
     { value: 15, suffix: "+", label: "Technologies" },
     { value: 2025, suffix: "", label: "Diploma in CST" },
   ],
+  // scrolling strip along the bottom of the hero
   ticker: [
     "React",
     "Next.js",
@@ -43,6 +49,7 @@ export const profile = {
   ],
 };
 
+// ---- Journey timeline (newest first) ---------------------------------------
 export const experience = [
   {
     period: "Jul 2025 — Present",
@@ -65,20 +72,25 @@ export const experience = [
   },
 ];
 
+// ---- Projects carousel -----------------------------------------------------
 export type Project = {
   name: string;
+  /** small badge on the card art */
   kind: string;
   description: string;
   tags: string[];
+  /** two colors for the generated card art gradient */
   hue: [string, string];
+  /** which SVG motif the card art draws */
   art: "erp" | "shop" | "motion";
+  /** optional buttons — omit to hide */
   live?: string;
   repo?: string;
 };
 
 export const projects: Project[] = [
   {
-    name: "Nebs-IT ERP",
+    name: "Custom ERP System",
     kind: "Enterprise system",
     description:
       "A complete ERP for inventory, sales, purchase, HR and reporting — with role-based access, real-time dashboards, payment gateway and automated emails.",
@@ -88,10 +100,10 @@ export const projects: Project[] = [
     live: "#", // TODO
   },
   {
-    name: "Multi-Branch Commerce",
-    kind: "E-commerce + POS",
+    name: "Multi-Vendor Commerce",
+    kind: "E-commerce marketplace",
     description:
-      "An e-commerce platform for a business with many branches — separate inventories, orders and customers per branch, plus an integrated in-store POS.",
+      "A multi-vendor e-commerce marketplace — each vendor manages their own storefront, inventory and orders, with an integrated POS for in-store sales.",
     tags: ["Next.js", "Node.js", "Express", "MongoDB"],
     hue: ["#db2777", "#8b5cf6"],
     art: "shop",
@@ -109,6 +121,8 @@ export const projects: Project[] = [
   },
 ];
 
+// ---- Toolkit section -------------------------------------------------------
+// `word` is drawn in particles; each item needs an icon in components/toolIcons.tsx
 export const toolkit = [
   {
     word: "FRONTEND",

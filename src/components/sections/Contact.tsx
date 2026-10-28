@@ -6,6 +6,10 @@ import { profile } from "@/data/profile";
 import { useReveal } from "@/lib/useReveal";
 import SectionLabel from "@/components/SectionLabel";
 
+/**
+ * Contact — "Let's connect." Copy-to-clipboard email, social links, and a form
+ * that opens the visitor's mail app pre-filled (no backend needed).
+ */
 export default function Contact() {
   const root = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState(false);

@@ -1,3 +1,4 @@
+/** Small mono eyebrow above section headings, e.g. "// 01 —— About me". */
 export default function SectionLabel({ index, children }: { index: string; children: React.ReactNode }) {
   return (
     <p data-reveal className="label mb-6 flex items-center gap-3">

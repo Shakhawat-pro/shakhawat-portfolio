@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { markIntroDone } from "@/lib/intro";
 
+/**
+ * Full-screen 00 → 100 counter shown on first load (page scroll is locked).
+ * When it finishes it fires the intro signal, which starts the hero's camera
+ * move and copy animation, then wipes upward and unmounts.
+ */
 export default function Preloader() {
   const root = useRef<HTMLDivElement>(null);
   const [count, setCount] = useState(0);

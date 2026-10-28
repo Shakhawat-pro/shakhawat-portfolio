@@ -3,6 +3,11 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 
+/**
+ * Custom cursor (mouse/trackpad only): a lagging ring plus a precise dot.
+ * The ring grows and turns cyan over anything interactive (links, buttons,
+ * inputs, or elements marked `data-cursor`). Touch devices keep the native cursor.
+ */
 export default function Cursor() {
   const ring = useRef<HTMLDivElement>(null);
   const dot = useRef<HTMLDivElement>(null);

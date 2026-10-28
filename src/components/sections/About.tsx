@@ -7,6 +7,7 @@ import { profile } from "@/data/profile";
 import { useReveal } from "@/lib/useReveal";
 import SectionLabel from "@/components/SectionLabel";
 
+/** Number that counts up from 0 the first time it scrolls into view. */
 function Counter({ value, suffix }: { value: number; suffix: string }) {
   const el = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -28,18 +29,34 @@ function Counter({ value, suffix }: { value: number; suffix: string }) {
   return <span ref={el}>0{suffix}</span>;
 }
 
+/**
+ * Photo card inside rotating "diamond" frames. Tilts toward the pointer in 3D
+ * with a moving glare highlight, and springs back on leave.
+ */
 function Portrait() {
   const card = useRef<HTMLDivElement>(null);
+  // reusable tweens: cheaper than creating a new tween on every pointermove
+  const tilt = useRef<{ x: gsap.QuickToFunc; y: gsap.QuickToFunc } | null>(null);
+  useEffect(() => {
+    tilt.current = {
+      x: gsap.quickTo(card.current, "rotateX", { duration: 0.6, ease: "power3.out" }),
+      y: gsap.quickTo(card.current, "rotateY", { duration: 0.6, ease: "power3.out" }),
+    };
+  }, []);
 
   const onMove = (e: React.PointerEvent) => {
     const r = card.current!.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width - 0.5;
     const y = (e.clientY - r.top) / r.height - 0.5;
-    gsap.to(card.current, { rotateY: x * 16, rotateX: -y * 16, duration: 0.6, ease: "power3.out" });
+    tilt.current?.y(x * 16);
+    tilt.current?.x(-y * 16);
     card.current!.style.setProperty("--gx", `${(x + 0.5) * 100}%`);
     card.current!.style.setProperty("--gy", `${(y + 0.5) * 100}%`);
   };
-  const onLeave = () => gsap.to(card.current, { rotateY: 0, rotateX: 0, duration: 1, ease: "elastic.out(1,0.5)" });
+  const onLeave = () => {
+    tilt.current?.x(0);
+    tilt.current?.y(0);
+  };
 
   return (
     <div data-reveal className="relative mx-auto aspect-square w-full max-w-[460px] [perspective:1000px]">
@@ -82,6 +99,7 @@ function Portrait() {
   );
 }
 
+/** About — headline, bio paragraphs, animated stats, and the tilting portrait. */
 export default function About() {
   const root = useRef<HTMLElement>(null);
   useReveal(root);

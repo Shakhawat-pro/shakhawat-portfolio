@@ -6,7 +6,8 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { toolkit } from "@/data/profile";
 import { toolIcon } from "@/components/toolIcons";
-import { prefersReducedMotion } from "@/lib/intro";
+import { prefersReducedMotion } from "@/lib/motion";
+import { scrollToY } from "@/lib/scroll";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -17,6 +18,14 @@ const LEAD = 0.08;
 // orbit center, as a fraction of the frame height (matches the particle word)
 const CY = 0.5;
 
+/**
+ * Toolkit — a pinned, scroll-driven section. Each scroll "chapter" is one skill
+ * category: the particle word morphs (FRONTEND → BACKEND → …) while that
+ * category's tool icons orbit it on a tilted ring.
+ *
+ * Layering inside the sticky stage (back → front):
+ *   glow + rings → back-half chips (z-5) → particle canvas (z-10) → front-half chips (z-30) → header/stepper (z-40)
+ */
 export default function Toolkit() {
   const root = useRef<HTMLElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -27,6 +36,7 @@ export default function Toolkit() {
   const hovered = useRef(false);
   const [index, setIndex] = useState(-1);
 
+  // scroll progress → active category (−1 until the section is reached)
   useEffect(() => {
     st.current = ScrollTrigger.create({
       trigger: root.current,
@@ -95,9 +105,19 @@ export default function Toolkit() {
         el.style.zIndex = depth > 0.5 ? "30" : "5";
       });
     };
-    gsap.ticker.add(tick);
+
+    // only animate while the stage is on screen
+    let running = false;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting === running) return;
+      running = e.isIntersecting;
+      if (running) gsap.ticker.add(tick);
+      else gsap.ticker.remove(tick);
+    });
+    io.observe(stage.current!);
     return () => {
       gsap.ticker.remove(tick);
+      io.disconnect();
       ro.disconnect();
     };
   }, []);
@@ -115,14 +135,12 @@ export default function Toolkit() {
     };
   }, [shown]);
 
+  // stepper click: scroll to the middle of that category's slice
   const jump = (i: number) => {
     const s = st.current;
     if (!s) return;
     const p = LEAD + ((i + 0.5) / WORDS.length) * (1 - LEAD);
-    const y = s.start + (s.end - s.start) * p;
-    const lenis = (window as unknown as { __lenis?: { scrollTo: (y: number, o?: object) => void } }).__lenis;
-    if (lenis) lenis.scrollTo(y, { duration: 1.2 });
-    else window.scrollTo({ top: y, behavior: "smooth" });
+    scrollToY(s.start + (s.end - s.start) * p);
   };
 
   return (
@@ -146,6 +164,7 @@ export default function Toolkit() {
           <ParticleWords words={WORDS} index={index} />
         </div>
 
+        {/* orbiting tool chips — positioned every frame by the orbit ticker above */}
         <ul className="pointer-events-none absolute inset-0 z-20">
           {cat.items.map((name, i) => {
             const [Icon, color] = toolIcon(name);

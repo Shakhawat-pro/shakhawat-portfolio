@@ -1,5 +1,6 @@
 import { profile } from "@/data/profile";
 
+/** Page footer: credit, tech line and location. Server component (no JS). */
 export default function Footer() {
   return (
     <footer className="relative border-t border-line">

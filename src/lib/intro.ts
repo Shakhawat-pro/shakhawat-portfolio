@@ -1,4 +1,7 @@
-// Tiny signal so the hero can start its intro once the preloader finishes.
+// One-shot "intro finished" signal.
+// The Preloader fires it when its curtain lifts; the hero (copy + 3D camera)
+// listens so their entrance animations start at exactly the right moment.
+
 const EVENT = "intro:done";
 let done = false;
 
@@ -7,6 +10,7 @@ export function markIntroDone() {
   window.dispatchEvent(new Event(EVENT));
 }
 
+/** Runs `cb` once the intro has finished (immediately if it already has). Returns an unsubscribe. */
 export function onIntroDone(cb: () => void) {
   if (done) {
     cb();
@@ -14,16 +18,4 @@ export function onIntroDone(cb: () => void) {
   }
   window.addEventListener(EVENT, cb, { once: true });
   return () => window.removeEventListener(EVENT, cb);
-}
-
-export const prefersReducedMotion = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-export function scrollToId(id: string) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const lenis = (window as unknown as { __lenis?: { scrollTo: (t: HTMLElement, o?: object) => void } }).__lenis;
-  if (lenis) lenis.scrollTo(el, { duration: 1.6 });
-  else el.scrollIntoView({ behavior: "smooth" });
 }

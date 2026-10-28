@@ -2,11 +2,20 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { prefersReducedMotion } from "@/lib/motion";
 
 type Props = { words: string[]; index: number };
 
-// Thousands of glowing points that spring into the shape of a word and
-// explode / reform whenever `index` changes. Points dodge the cursor.
+/**
+ * Thousands of glowing points that spring into the shape of a word and
+ * explode / reform whenever `index` changes (−1 = loose drifting cloud).
+ * Points dodge the cursor.
+ *
+ * Plain three.js (no React Three Fiber): one renderer, one Points object.
+ * Each word is rasterised to an offscreen canvas once, and its filled pixels
+ * become the N target positions; per frame a damped spring pulls every point
+ * toward its target on the CPU. Rendering stops while off screen.
+ */
 export default function ParticleWords({ words, index }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const setIndex = useRef<(i: number) => void>(() => {});
@@ -15,8 +24,9 @@ export default function ParticleWords({ words, index }: Props) {
     const el = host.current!;
     const mobile = window.innerWidth < 768;
     const N = mobile ? 5000 : 10000;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = prefersReducedMotion();
 
+    // --- renderer, camera, points -------------------------------------------
     const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     el.appendChild(renderer.domElement);
@@ -76,6 +86,7 @@ export default function ParticleWords({ words, index }: Props) {
     const points = new THREE.Points(geo, mat);
     scene.add(points);
 
+    // visible world size at z = 0, used to fit the words and map the cursor
     let viewW = 10;
     let viewH = 6;
     const resize = () => {
@@ -88,11 +99,10 @@ export default function ParticleWords({ words, index }: Props) {
       camera.updateProjectionMatrix();
       viewH = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(20));
       viewW = viewH * camera.aspect;
-      // nudge the word slightly above center: the orbit ring is drawn around it
-      points.position.y = 0;
     };
     resize();
 
+    // --- word targets ---------------------------------------------------------
     // sample each word into N target points (heavy sans so strokes stay readable as dots)
     const fontFamily =
       getComputedStyle(document.documentElement).getPropertyValue("--font-sans-ui").trim() || "system-ui, sans-serif";
@@ -132,6 +142,7 @@ export default function ParticleWords({ words, index }: Props) {
       return out;
     });
 
+    // switching words gives every point a random kick, so they burst before reforming
     let current = -1;
     let target: Float32Array | null = null;
     setIndex.current = (i: number) => {
@@ -145,29 +156,35 @@ export default function ParticleWords({ words, index }: Props) {
       }
     };
 
-    const mouse = new THREE.Vector2(9999, 9999);
+    // --- input + visibility ---------------------------------------------------
+    // cursor in world units at z = 0 (far away when outside the stage)
+    const FAR = 9999;
+    const mouse = new THREE.Vector2(FAR, FAR);
     const onMove = (e: PointerEvent) => {
+      if (!visible) return;
       const r = el.getBoundingClientRect();
       const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
       const ny = -((e.clientY - r.top) / r.height) * 2 + 1;
-      if (Math.abs(nx) > 1 || Math.abs(ny) > 1) return mouse.set(9999, 9999);
-      mouse.set((nx * viewW) / 2, (ny * viewH) / 2 - points.position.y);
+      if (Math.abs(nx) > 1 || Math.abs(ny) > 1) mouse.set(FAR, FAR);
+      else mouse.set((nx * viewW) / 2, (ny * viewH) / 2);
     };
-    const onLeave = () => mouse.set(9999, 9999);
-    window.addEventListener("pointermove", onMove);
+    const onLeave = () => mouse.set(FAR, FAR);
+    window.addEventListener("pointermove", onMove, { passive: true });
     el.addEventListener("pointerleave", onLeave);
 
     let visible = false;
     const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
     io.observe(el);
 
-    const clock = new THREE.Clock();
+    // --- simulation loop --------------------------------------------------------
+    const timer = new THREE.Timer();
     let raf = 0;
-    const tick = () => {
+    const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      timer.update(now);
       if (!visible) return;
-      const dt = Math.min(clock.getDelta(), 0.05);
-      const t = clock.elapsedTime;
+      const dt = Math.min(timer.getDelta(), 0.05);
+      const t = timer.getElapsed();
       mat.uniforms.uTime.value = t;
       const k = reduce ? 0.2 : 0.035;
       const damp = reduce ? 0.5 : 0.86;
@@ -204,11 +221,13 @@ export default function ParticleWords({ words, index }: Props) {
         pos[ix + 2] += vel[ix + 2] * dt * 60 * 0.5;
       }
       geo.attributes.position.needsUpdate = true;
-      points.rotation.y += ((mouse.x < 999 ? (mouse.x / viewW) * 0.15 : 0) - points.rotation.y) * 0.04;
-      points.rotation.x += ((mouse.y < 999 ? (-mouse.y / viewH) * 0.1 : 0) - points.rotation.x) * 0.04;
+      // gentle tilt toward the cursor
+      const near = mouse.x !== FAR;
+      points.rotation.y += ((near ? (mouse.x / viewW) * 0.15 : 0) - points.rotation.y) * 0.04;
+      points.rotation.x += ((near ? (-mouse.y / viewH) * 0.1 : 0) - points.rotation.x) * 0.04;
       renderer.render(scene, camera);
     };
-    tick();
+    raf = requestAnimationFrame(tick);
 
     const ro = new ResizeObserver(resize);
     ro.observe(el);
@@ -219,6 +238,7 @@ export default function ParticleWords({ words, index }: Props) {
       ro.disconnect();
       window.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerleave", onLeave);
+      timer.dispose();
       geo.dispose();
       mat.dispose();
       renderer.dispose();
@@ -230,5 +250,5 @@ export default function ParticleWords({ words, index }: Props) {
     setIndex.current(index);
   }, [index]);
 
-  return <div ref={host} className="absolute inset-0" />;
+  return <div ref={host} className="absolute inset-0" aria-hidden />;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { profile } from "@/data/profile";
-import { scrollToId } from "@/lib/intro";
+import { scrollToId } from "@/lib/scroll";
 
 const links = [
   { id: "about", label: "About" },
@@ -11,6 +11,10 @@ const links = [
   { id: "contact", label: "Contact" },
 ];
 
+/**
+ * Fixed top navigation. Transparent over the hero, frosted once the page
+ * scrolls; links smooth-scroll to sections. Collapses to a menu on mobile.
+ */
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);

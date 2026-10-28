@@ -6,6 +6,10 @@ import { experience } from "@/data/profile";
 import { useReveal } from "@/lib/useReveal";
 import SectionLabel from "@/components/SectionLabel";
 
+/**
+ * Journey — alternating timeline of work and education. A glowing beam fills
+ * the center line as you scroll (single column with a left rail on mobile).
+ */
 export default function Experience() {
   const root = useRef<HTMLElement>(null);
   const beam = useRef<HTMLDivElement>(null);

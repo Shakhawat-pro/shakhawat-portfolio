@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { projects, type Project } from "@/data/profile";
 import { useReveal } from "@/lib/useReveal";
+import { MOBILE_QUERY, useMediaQuery } from "@/lib/motion";
 import SectionLabel from "@/components/SectionLabel";
 
+/** Generated cover art for a project card: brand gradient + grid + a small SVG motif. */
 function Art({ p }: { p: Project }) {
   const [a, b] = p.hue;
   return (
@@ -56,22 +58,20 @@ function Art({ p }: { p: Project }) {
   );
 }
 
+/**
+ * Projects — "Things I've built." A 3D card carousel driven by GSAP.
+ * Navigate with the arrows, the dots, a swipe/drag, or ←/→ when focused.
+ */
 export default function Projects() {
   const root = useRef<HTMLElement>(null);
   const cards = useRef<(HTMLDivElement | null)[]>([]);
   const [active, setActive] = useState(0);
-  const [narrow, setNarrow] = useState(false);
+  const narrow = useMediaQuery(MOBILE_QUERY);
   const n = projects.length;
   useReveal(root);
 
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const up = () => setNarrow(mq.matches);
-    up();
-    mq.addEventListener("change", up);
-    return () => mq.removeEventListener("change", up);
-  }, []);
-
+  // lay the cards out around the active one: neighbours swing back in 3D,
+  // anything further away is hidden (offsets wrap so the carousel loops)
   useEffect(() => {
     cards.current.forEach((el, i) => {
       if (!el) return;

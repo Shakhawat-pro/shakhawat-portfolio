@@ -1,9 +1,14 @@
+// Procedural textures for the hero scene, drawn with the 2D canvas API at
+// runtime — no image downloads. Callers own the returned textures and should
+// dispose them on unmount.
+
 import * as THREE from "three";
 
 const CYAN = "#67e8f9";
 const VIOLET = "#a78bfa";
 const DIM = "rgba(167,139,250,0.45)";
 
+/** Soft radial blob, used for halos, sprites and point sprites. */
 export function glowTexture(inner = "rgba(139,92,246,1)", outer = "rgba(139,92,246,0)") {
   const c = document.createElement("canvas");
   c.width = c.height = 128;
@@ -18,6 +23,7 @@ export function glowTexture(inner = "rgba(139,92,246,1)", outer = "rgba(139,92,2
   return t;
 }
 
+/** Shared HUD chrome: glassy rounded panel, cyan corner brackets, title bar and window dots. */
 function frame(g: CanvasRenderingContext2D, w: number, h: number, title: string) {
   g.clearRect(0, 0, w, h);
   const bg = g.createLinearGradient(0, 0, w, h);
@@ -61,6 +67,7 @@ function frame(g: CanvasRenderingContext2D, w: number, h: number, title: string)
 
 export type PanelKind = "code" | "bars" | "terminal" | "api" | "stats" | "line";
 
+/** One floating HUD screen (512×320) with dev-flavoured content for the given kind. */
 export function panelTexture(kind: PanelKind) {
   const w = 512;
   const h = 320;
@@ -73,12 +80,12 @@ export function panelTexture(kind: PanelKind) {
     frame(g, w, h, "erp/inventory.ts");
     const lines: [string, string][] = [
       [VIOLET, "export async function restock("],
-      ["#e0e7ff", "  branch: Branch, sku: string"],
+      ["#e0e7ff", "  vendor: Vendor, sku: string"],
       [VIOLET, ") {"],
       [CYAN, "  const item = await db.item"],
       ["#e0e7ff", "    .findUnique({ where: { sku } })"],
       [CYAN, "  if (item.qty < item.min)"],
-      ["#f9a8d4", "    await notify(branch.manager)"],
+      ["#f9a8d4", "    await notify(vendor.owner)"],
       [VIOLET, "  return item"],
       [VIOLET, "}"],
     ];
@@ -90,7 +97,7 @@ export function panelTexture(kind: PanelKind) {
       g.fillText(t, 62, 92 + i * 25);
     });
   } else if (kind === "bars") {
-    frame(g, w, h, "sales / branch");
+    frame(g, w, h, "sales / vendor");
     const vals = [0.45, 0.7, 0.38, 0.85, 0.6, 0.95, 0.72, 0.5];
     vals.forEach((v, i) => {
       const bh = v * 190;
@@ -122,7 +129,7 @@ export function panelTexture(kind: PanelKind) {
     const lines = [
       [VIOLET, "{"],
       [CYAN, '  "id": "ord_8f3k2",'],
-      [CYAN, '  "branch": "dhaka-02",'],
+      [CYAN, '  "vendor": "v_dhaka02",'],
       ["#e0e7ff", '  "items": 3,'],
       ["#e0e7ff", '  "total": 4290,'],
       ["#4ade80", '  "status": "paid"'],

@@ -6,6 +6,8 @@ import Toolkit from "@/components/sections/Toolkit";
 import Contact from "@/components/sections/Contact";
 import Footer from "@/components/sections/Footer";
 
+// Single-page portfolio. Section order here is the scroll order; nav links
+// target the ids: #top, #about, #work, #skills, #contact.
 export default function Home() {
   return (
     <main>
