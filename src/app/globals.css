@@ -1,26 +1,175 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #05060f;
+  --bg-2: #0a0b1e;
+  --ink: #eef0ff;
+  --muted: #8b8fb3;
+  --violet: #8b5cf6;
+  --indigo: #6d4bff;
+  --cyan: #67e8f9;
+  --ember: #fb923c;
+  --line: rgba(139, 143, 255, 0.16);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-violet: var(--violet);
+  --color-cyan: var(--cyan);
+  --color-ember: var(--ember);
+  --color-line: var(--line);
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans-ui);
+  --font-mono: var(--font-mono-ui);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--bg);
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans-ui), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--violet);
+  color: white;
+}
+
+/* film grain over everything */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  animation: grain 1.2s steps(6) infinite;
+}
+
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-3%, 2%); }
+  40% { transform: translate(2%, -3%); }
+  60% { transform: translate(-2%, -1%); }
+  80% { transform: translate(3%, 3%); }
+  100% { transform: translate(0, 0); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html.has-cursor,
+  html.has-cursor a,
+  html.has-cursor button {
+    cursor: none;
+  }
+}
+
+.font-display {
+  font-family: var(--font-serif), Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+.label {
+  font-family: var(--font-mono-ui), monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.glow-white {
+  text-shadow: 0 0 24px rgba(200, 205, 255, 0.35);
+}
+
+.glow-cyan {
+  color: var(--cyan);
+  text-shadow:
+    0 0 12px rgba(103, 232, 249, 0.65),
+    0 0 42px rgba(103, 232, 249, 0.35);
+}
+
+.glass {
+  background: linear-gradient(160deg, rgba(30, 32, 70, 0.55), rgba(10, 11, 30, 0.45));
+  border: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.7rem 1.4rem;
+  font-family: var(--font-mono-ui), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s, background 0.4s;
+}
+
+.pill-primary {
+  background: var(--cyan);
+  color: #04121a;
+  box-shadow: 0 0 24px rgba(103, 232, 249, 0.45);
+}
+
+.pill-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(103, 232, 249, 0.7);
+}
+
+.pill-ghost {
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.pill-ghost:hover {
+  border-color: var(--violet);
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.35);
+}
+
+.marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+
+@keyframes scrollcue {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(200%); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+
+.spin-slow {
+  animation: spin 18s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
